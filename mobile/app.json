@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Hallaton Family",
+    "slug": "hallaton-family",
+    "platforms": ["ios", "android"],
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "uk.co.hallatonprimary.family"
+    },
+    "android": {
+      "package": "uk.co.hallatonprimary.family"
+    }
+  }
+}

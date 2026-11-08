@@ -1,0 +1,458 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  TEACHER
+  SAFEGUARDING_LEAD
+  PARENT
+}
+
+enum ConcernStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+}
+
+enum ConsentChoice {
+  PENDING
+  GRANTED
+  DECLINED
+}
+
+enum RSVPStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+}
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String?      @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role         @default(PARENT)
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  auditEntries  AuditLog[]   @relation("AuditActor")
+  parentLinks   ParentLink[]
+  concerns      SafeguardingConcern[] @relation("ConcernReporter")
+  eventInvites  EventInvite[]
+  enquiries     ContactEnquiry[]
+  enquiryShares EnquiryShare[]
+  enquiryReviews EnquiryReview[]
+  enquiryDeletions EnquiryDeletion[]
+  classAssignments StaffClassAssignment[]
+  sportsCoordinator Boolean @default(false)
+  safeguardingLead Boolean @default(false)
+  eventFeedback EventFeedback[]
+  curriculumFeedback CurriculumFeedback[]
+}
+
+model EnquiryDeletion {
+  id                    String   @id @default(cuid())
+  enquiryId             String
+  authorisedById        String
+  encryptedJustification String  @db.Text
+  encryptedReview       String   @db.Text
+  deletedAt             DateTime @default(now())
+  authorisedBy          User     @relation(fields: [authorisedById], references: [id])
+}
+
+model EnquirySettings {
+  id                     String   @id @default("school")
+  notificationEmail      String?
+  teacherAccess          Boolean  @default(true)
+  safeguardingLeadAccess Boolean  @default(false)
+  reviewAfterDays        Int?
+  updatedAt              DateTime @updatedAt
+}
+
+model EnquiryContact {
+  id        String           @id @default(cuid())
+  email     String           @unique
+  name      String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  enquiries ContactEnquiry[]
+}
+
+model ContactEnquiry {
+  id            String         @id @default(cuid())
+  contactId     String
+  parentId      String?
+  senderName    String
+  encryptedBody String         @db.Text
+  createdAt     DateTime       @default(now())
+  reviewedAt    DateTime?
+  contact       EnquiryContact @relation(fields: [contactId], references: [id])
+  parent        User?          @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  students      EnquiryStudent[]
+  shares        EnquiryShare[]
+  reviews       EnquiryReview[]
+
+  @@index([contactId, createdAt])
+}
+
+model EnquiryReview {
+  id                String         @id @default(cuid())
+  enquiryId         String
+  reviewerId        String
+  encryptedDecision String         @db.Text
+  createdAt         DateTime       @default(now())
+  enquiry           ContactEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  reviewer          User           @relation(fields: [reviewerId], references: [id])
+
+  @@index([enquiryId, createdAt])
+}
+
+model EnquiryStudent {
+  enquiryId String
+  studentId String
+  enquiry   ContactEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([enquiryId, studentId])
+}
+
+model EnquiryShare {
+  enquiryId String
+  userId    String
+  studentId String
+  parentLinkId String
+  enquiry   ContactEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parentLink ParentLink    @relation(fields: [parentLinkId], references: [id], onDelete: Cascade)
+
+  @@id([enquiryId, userId, studentId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ClassGroup {
+  id        String    @id @default(cuid())
+  name      String
+  yearGroup String
+  teacherId String?
+  createdAt DateTime  @default(now())
+  students  Student[]
+  learning  WeeklyLearning[]
+  staffAssignments StaffClassAssignment[]
+}
+
+model StaffClassAssignment {
+  userId String
+  classGroupId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  @@id([userId, classGroupId])
+}
+
+model Student {
+  id             String           @id @default(cuid())
+  reference      String           @unique
+  firstName      String
+  lastName       String
+  classGroupId   String?
+  classGroup     ClassGroup?      @relation(fields: [classGroupId], references: [id])
+  privateProfile String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  parentLinks    ParentLink[]
+  concerns       SafeguardingConcern[]
+  socialConsent  SocialMediaConsent?
+  eventInvites   EventInvite[]
+  enquiries      EnquiryStudent[]
+  enquiryShares  EnquiryShare[]
+  auditLinks     AuditStudent[]
+  mealPlans      MealPlan[]
+  mealExceptions MealException[]
+  eventFeedback EventFeedback[]
+  curriculumFeedback CurriculumFeedback[]
+}
+
+model CurriculumFeedback {
+  id String @id @default(cuid())
+  studentId String
+  authorId String
+  encryptedBody String @db.Text
+  createdAt DateTime @default(now())
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+  @@index([studentId, createdAt])
+}
+
+model MealSettings {
+  id            String @id @default("school")
+  periodStart   String
+  periodEnd     String
+  pricePence    Int
+  cutoffDays    Int
+  cutoffTime    String
+  updatedAt     DateTime @updatedAt
+}
+
+model MealPlan {
+  id          String @id @default(cuid())
+  studentId   String
+  periodStart String
+  weekdays    Int[]
+  updatedAt   DateTime @updatedAt
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, periodStart])
+}
+
+model MealException {
+  id        String @id @default(cuid())
+  studentId String
+  date      String
+  packed    Boolean
+  updatedAt DateTime @updatedAt
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+}
+
+model MealMenu {
+  date      String @id
+  menu      String @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model CatererToken {
+  id        String @id @default(cuid())
+  name      String
+  tokenHash String @unique
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+}
+
+model ParentLink {
+  id        String @id @default(cuid())
+  studentId String
+  userId    String
+  relation  String?
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enquiryShares EnquiryShare[]
+
+  @@unique([studentId, userId])
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  body        String   @db.Text
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  authorId    String
+}
+
+model Newsletter {
+  id          String   @id @default(cuid())
+  title       String
+  issueDate   DateTime
+  publicUrl   String?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model SchoolEvent {
+  id            String        @id @default(cuid())
+  title         String
+  description   String        @db.Text
+  startsAt      DateTime
+  endsAt        DateTime?
+  meetingInfo   String?
+  gearList      String?
+  published     Boolean       @default(false)
+  publicTitle   String?
+  publicSummary String?       @db.Text
+  createdAt     DateTime      @default(now())
+  invites       EventInvite[]
+  approved      Boolean       @default(false)
+  createdById   String?
+  category      String        @default("GENERAL")
+  feedback      EventFeedback[]
+}
+
+model EventFeedback {
+  id String @id @default(cuid())
+  eventId String
+  studentId String
+  authorId String
+  encryptedBody String @db.Text
+  createdAt DateTime @default(now())
+  event SchoolEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+  @@index([eventId, studentId])
+}
+
+model SocialLink {
+  platform  String   @id
+  url       String
+  enabled   Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model WebsiteSocialDraft {
+  id            String   @id
+  links         Json
+  baseline      Json
+  updatedAt     DateTime @updatedAt
+}
+
+model WebsitePopup {
+  id        String   @id @default("school")
+  tagline   String
+  imageAlt  String
+  image     Bytes
+  imageType String
+  linkUrl   String
+  linkLabel String
+  startsAt  DateTime
+  endsAt    DateTime
+  enabled   Boolean  @default(false)
+  baseUpdatedAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+
+model WebsitePageDraft {
+  pageId    String   @id
+  title     String
+  body      String   @db.Text
+  documents String?  @db.Text
+  baseUpdatedAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+
+model WebsitePagePublished {
+  pageId    String   @id
+  title     String
+  body      String   @db.Text
+  documents String?  @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model WebsiteConfigSnapshot {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  actorId   String
+  reason    String
+  content   Json
+}
+
+model EventInvite {
+  id        String     @id @default(cuid())
+  eventId   String
+  studentId String
+  userId    String
+  status    RSVPStatus @default(INVITED)
+  event     SchoolEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  student   Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, studentId, userId])
+}
+
+model WeeklyLearning {
+  id          String     @id @default(cuid())
+  classGroupId String
+  weekOf      DateTime
+  learning    String     @db.Text
+  homework    String?    @db.Text
+  classGroup  ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([classGroupId, weekOf])
+}
+
+model SafeguardingConcern {
+  id             String        @id @default(cuid())
+  studentId      String
+  reporterId     String
+  encryptedBody  String        @db.Text
+  status         ConcernStatus @default(OPEN)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  student        Student       @relation(fields: [studentId], references: [id])
+  reporter       User          @relation("ConcernReporter", fields: [reporterId], references: [id])
+}
+
+model SocialMediaConsent {
+  id        String        @id @default(cuid())
+  studentId String        @unique
+  choice    ConsentChoice @default(PENDING)
+  updatedAt DateTime      @updatedAt
+  student   Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String
+  occurredAt  DateTime @default(now())
+  beforeText  String?  @db.Text
+  afterText   String?  @db.Text
+  actor       User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  students    AuditStudent[]
+
+  @@index([entityType, entityId, occurredAt])
+}
+
+model AuditStudent {
+  auditId   String
+  studentId String
+  audit     AuditLog @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([auditId, studentId])
+  @@index([studentId, auditId])
+}

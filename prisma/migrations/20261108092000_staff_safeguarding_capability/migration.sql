@@ -1,0 +1,1 @@
+ALTER TABLE "User" ADD COLUMN "safeguardingLead" BOOLEAN NOT NULL DEFAULT false;

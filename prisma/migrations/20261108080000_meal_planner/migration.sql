@@ -1,0 +1,10 @@
+CREATE TABLE "MealSettings" ("id" TEXT NOT NULL DEFAULT 'school', "periodStart" TEXT NOT NULL, "periodEnd" TEXT NOT NULL, "pricePence" INTEGER NOT NULL, "cutoffDays" INTEGER NOT NULL, "cutoffTime" TEXT NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "MealSettings_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "MealPlan" ("id" TEXT NOT NULL, "studentId" TEXT NOT NULL, "periodStart" TEXT NOT NULL, "weekdays" INTEGER[] NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "MealPlan_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "MealException" ("id" TEXT NOT NULL, "studentId" TEXT NOT NULL, "date" TEXT NOT NULL, "packed" BOOLEAN NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "MealException_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "MealMenu" ("date" TEXT NOT NULL, "menu" TEXT NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "MealMenu_pkey" PRIMARY KEY ("date"));
+CREATE TABLE "CatererToken" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "tokenHash" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "revokedAt" TIMESTAMP(3), CONSTRAINT "CatererToken_pkey" PRIMARY KEY ("id"));
+CREATE UNIQUE INDEX "CatererToken_tokenHash_key" ON "CatererToken"("tokenHash");
+CREATE UNIQUE INDEX "MealPlan_studentId_periodStart_key" ON "MealPlan"("studentId", "periodStart");
+CREATE UNIQUE INDEX "MealException_studentId_date_key" ON "MealException"("studentId", "date");
+ALTER TABLE "MealPlan" ADD CONSTRAINT "MealPlan_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "MealException" ADD CONSTRAINT "MealException_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
